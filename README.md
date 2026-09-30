@@ -62,3 +62,42 @@ The shared address remains `localhost:8443` in `common/NetworkConfig.kt`.
 
 Focused in-memory unit tests cover JSON round trips, UTF-8 text and spaces, escaped newlines,
 separate message framing, malformed JSON, unknown types, and end-of-stream.
+
+## Phase 3
+Phase 3 replaces temporary `TEST_REQUEST` / `TEST_RESPONSE` with `CLIENT_HELLO` / `SERVER_HELLO`.
+Client and server independently generate 32-byte random values using the JDK `SecureRandom`.
+The JDK Base64 encoder converts these bytes to strings in the existing JSON payload map:
+`CLIENT_HELLO` contains `clientRandom`; `SERVER_HELLO` contains `serverRandom`.
+
+`crypto/CryptoRandom.kt` generates random bytes. `protocol/HelloRandomPayload.kt` validates
+message types, required fields, Base64 encoding, and the exact 32-byte decoded length.
+Both raw random values remain available as local byte arrays on each side during the exchange
+for future session-key derivation; they are not persisted after the processes exit.
+`MessageTransport` and its UTF-8 JSON line framing are unchanged.
+
+Communication is still ordinary unencrypted TCP. The handshake is NOT complete,
+and no certificate authentication or encryption exists yet.
+
+### IntelliJ IDEA
+
+Run `ServerMain.kt`, wait for `[SERVER] Waiting for client...`, then run `ClientMain.kt`
+separately, using the same JDK 17 setup as previous phases.
+
+### Windows terminals
+
+Build and run all tests: `./gradlew.bat build`
+
+Run tests separately: `./gradlew.bat test`
+
+First terminal: `./gradlew.bat runServer`
+
+Second terminal: `./gradlew.bat runClient`
+
+Both consoles show `CLIENT_HELLO`, `SERVER_HELLO`, the Base64 random values, their 32-byte
+lengths, and `Hello exchange completed.` before exiting. Restart the server and client
+for another exchange: each run should show different random values. The address remains
+`localhost:8443`. The full TLS handshake is not completed by this exchange.
+
+Tests retain the Phase 2 transport coverage with the new message types and add random-size,
+independent-generation, Base64 round-trip, valid-payload, malformed-Base64, wrong-length,
+missing-field, and unexpected-type checks.

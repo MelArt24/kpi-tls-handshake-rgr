@@ -4,6 +4,6 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 enum class MessageType {
-    TEST_REQUEST,
-    TEST_RESPONSE,
+    CLIENT_HELLO,
+    SERVER_HELLO,
 }

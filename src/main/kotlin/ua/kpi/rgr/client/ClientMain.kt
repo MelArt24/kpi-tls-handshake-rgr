@@ -1,12 +1,15 @@
 package ua.kpi.rgr.client
 
 import ua.kpi.rgr.common.NetworkConfig
+import ua.kpi.rgr.crypto.CryptoRandom
+import ua.kpi.rgr.protocol.HelloRandomPayload
 import ua.kpi.rgr.protocol.MessageTransport
 import ua.kpi.rgr.protocol.MessageType
 import ua.kpi.rgr.protocol.ProtocolMessage
 import java.io.IOException
 import java.net.ConnectException
 import java.net.Socket
+import java.util.Base64
 
 fun main() {
     println("[CLIENT] Connecting to ${NetworkConfig.HOST}:${NetworkConfig.PORT}...")
@@ -14,21 +17,23 @@ fun main() {
         Socket(NetworkConfig.HOST, NetworkConfig.PORT).use { socket ->
             println("[CLIENT] Connected.")
             val transport = MessageTransport(socket.getInputStream(), socket.getOutputStream())
-            val request = ProtocolMessage(MessageType.TEST_REQUEST, mapOf("message" to "Hello from client"))
-            println("[CLIENT] Sending protocol message:")
-            println("[CLIENT] Type: ${request.type}")
-            println("[CLIENT] Message: ${request.payload.getValue("message")}")
+            println("\n========== TLS HANDSHAKE SIMULATION ==========\n")
+            println("[1] CLIENT_HELLO")
+            val clientRandom = CryptoRandom.generateRandomBytes()
+            val encodedClientRandom = Base64.getEncoder().encodeToString(clientRandom)
+            val request = ProtocolMessage(MessageType.CLIENT_HELLO, mapOf("clientRandom" to encodedClientRandom))
+            println("[CLIENT] Generated client random: ${clientRandom.size} bytes")
+            println("[CLIENT] clientRandom (Base64): $encodedClientRandom")
+            println("[CLIENT] Sending CLIENT_HELLO...")
             transport.send(request)
 
             val response = transport.receive()
-            if (response.type != MessageType.TEST_RESPONSE) {
-                throw IOException("Expected TEST_RESPONSE, received ${response.type}.")
-            }
-            val message = response.payload["message"]
-                ?: throw IOException("TEST_RESPONSE is missing the 'message' payload field.")
-            println("[CLIENT] Received protocol message:")
-            println("[CLIENT] Type: ${response.type}")
-            println("[CLIENT] Message: $message")
+            val serverRandom = HelloRandomPayload.decode(response, MessageType.SERVER_HELLO, "serverRandom")
+            println("\n[2] SERVER_HELLO")
+            println("[CLIENT] Received SERVER_HELLO")
+            println("[CLIENT] serverRandom (Base64): ${response.payload.getValue("serverRandom")}")
+            println("[CLIENT] serverRandom length: ${serverRandom.size} bytes")
+            println("[CLIENT] Hello exchange completed.")
         }
         println("[CLIENT] Connection closed.")
     } catch (error: ConnectException) {

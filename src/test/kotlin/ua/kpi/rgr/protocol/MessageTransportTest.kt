@@ -15,7 +15,7 @@ class MessageTransportTest {
     @Test
     fun `JSON round trip preserves type and named textual fields`() {
         val message = ProtocolMessage(
-            MessageType.TEST_REQUEST,
+            MessageType.CLIENT_HELLO,
             mapOf("message" to "Hello from client with spaces", "note" to "Ordinary text: 123"),
         )
         assertEquals(message, Json.decodeFromString<ProtocolMessage>(Json.encodeToString(message)))
@@ -24,7 +24,7 @@ class MessageTransportTest {
     @Test
     fun `transport round trip preserves UTF-8 and escapes embedded newlines`() {
         val message = ProtocolMessage(
-            MessageType.TEST_RESPONSE,
+            MessageType.SERVER_HELLO,
             mapOf("message" to "Hello with spaces\nSecond line\r\nПривіт \"client\" \\"),
         )
         val output = ByteArrayOutputStream()
@@ -41,8 +41,8 @@ class MessageTransportTest {
     fun `successive messages remain separate lines`() {
         val output = ByteArrayOutputStream()
         val sender = MessageTransport(ByteArrayInputStream(byteArrayOf()), output)
-        val request = ProtocolMessage(MessageType.TEST_REQUEST)
-        val response = ProtocolMessage(MessageType.TEST_RESPONSE)
+        val request = ProtocolMessage(MessageType.CLIENT_HELLO)
+        val response = ProtocolMessage(MessageType.SERVER_HELLO)
         sender.send(request)
         sender.send(response)
         val receiver = MessageTransport(ByteArrayInputStream(output.toByteArray()), ByteArrayOutputStream())

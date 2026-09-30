@@ -1,12 +1,15 @@
 package ua.kpi.rgr.server
 
 import ua.kpi.rgr.common.NetworkConfig
+import ua.kpi.rgr.crypto.CryptoRandom
+import ua.kpi.rgr.protocol.HelloRandomPayload
 import ua.kpi.rgr.protocol.MessageTransport
 import ua.kpi.rgr.protocol.MessageType
 import ua.kpi.rgr.protocol.ProtocolMessage
 import java.io.IOException
 import java.net.InetAddress
 import java.net.ServerSocket
+import java.util.Base64
 
 fun main() {
     try {
@@ -17,20 +20,22 @@ fun main() {
                 println("[SERVER] Client connected: ${client.remoteSocketAddress}")
                 val transport = MessageTransport(client.getInputStream(), client.getOutputStream())
                 val request = transport.receive()
-                if (request.type != MessageType.TEST_REQUEST) {
-                    throw IOException("Expected TEST_REQUEST, received ${request.type}.")
-                }
-                val message = request.payload["message"]
-                    ?: throw IOException("TEST_REQUEST is missing the 'message' payload field.")
-                println("[SERVER] Received protocol message:")
-                println("[SERVER] Type: ${request.type}")
-                println("[SERVER] Message: $message")
+                val clientRandom = HelloRandomPayload.decode(request, MessageType.CLIENT_HELLO, "clientRandom")
+                println("\n========== TLS HANDSHAKE SIMULATION ==========\n")
+                println("[1] CLIENT_HELLO")
+                println("[SERVER] Received CLIENT_HELLO")
+                println("[SERVER] clientRandom (Base64): ${request.payload.getValue("clientRandom")}")
+                println("[SERVER] clientRandom length: ${clientRandom.size} bytes")
 
-                val response = ProtocolMessage(MessageType.TEST_RESPONSE, mapOf("message" to "Hello from server"))
-                println("[SERVER] Sending protocol message:")
-                println("[SERVER] Type: ${response.type}")
-                println("[SERVER] Message: ${response.payload.getValue("message")}")
+                println("\n[2] SERVER_HELLO")
+                val serverRandom = CryptoRandom.generateRandomBytes()
+                val encodedServerRandom = Base64.getEncoder().encodeToString(serverRandom)
+                val response = ProtocolMessage(MessageType.SERVER_HELLO, mapOf("serverRandom" to encodedServerRandom))
+                println("[SERVER] Generated server random: ${serverRandom.size} bytes")
+                println("[SERVER] serverRandom (Base64): $encodedServerRandom")
+                println("[SERVER] Sending SERVER_HELLO...")
                 transport.send(response)
+                println("[SERVER] Hello exchange completed.")
             }
         }
         println("[SERVER] Connection closed. Server stopped.")
