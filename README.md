@@ -152,3 +152,54 @@ Certificates are NOT yet transmitted or validated during the live handshake.
 `runServer` / `runClient` still exchange only `CLIENT_HELLO` / `SERVER_HELLO` and their
 32-byte random values. The connection remains unencrypted ordinary TCP; the handshake
 is incomplete. No premaster secret, key exchange, session keys, or encrypted data are added.
+
+## Phase 5
+`SERVER_HELLO` now contains both `serverRandom` and `serverCertificate`. The server loads
+`certificates/server.crt` and transfers its X.509 DER bytes as a Base64 string inside the
+existing JSON payload. `ProtocolMessage`, UTF-8 line framing, and the raw random byte arrays
+are preserved. The Root CA is NOT sent by the server as a trusted object.
+
+The client requires and decodes the certificate payload with JDK Base64 and parses X.509
+using the JVM CertificateFactory. It independently loads `certificates/root-ca.crt`.
+The trusted root must be currently valid, marked as a CA, self-issued, and self-signed.
+The client uses JVM PKIX CertPathValidator with the server certificate as the path and the
+local root as a TrustAnchor. An unrelated Root CA rejects the server even if its subject
+and issuer names look correct.
+
+Revocation checking is disabled because this educational CA has no CRL or OCSP infrastructure;
+revocation is outside the current base variant and is not checked.
+After PKIX validation, the client requires a non-CA RSA certificate, keyEncipherment key usage,
+and serverAuth EKU. It verifies an exact DNS SAN for `localhost`, or an exact IP SAN for an
+IP host such as `127.0.0.1`. There is no CN fallback or wildcard hostname matching.
+Missing fields, malformed Base64/X.509, missing files, and failed authentication stop processing.
+
+### IntelliJ IDEA
+
+Generate certificates first, then run `ServerMain.kt` and `ClientMain.kt` separately as before.
+Keep the working directory set to the project root so both use the same local certificate set.
+Credentials are never generated automatically at application startup.
+
+### Windows terminals
+
+Build and run all tests: `./gradlew.bat build`
+
+Prerequisite: `./gradlew.bat generateCertificates`
+
+First terminal: `./gradlew.bat runServer`
+
+Second terminal: `./gradlew.bat runClient`
+
+The server logs the certificate subject and issuer attached to SERVER_HELLO. The client logs
+received certificate metadata, successful PKIX/usage/SAN checks, and `SERVER AUTHENTICATED`.
+Both processes then close cleanly. Missing certificate errors tell you to run generateCertificates.
+The generated directory remains gitignored and no system trust store is changed.
+
+Tests cover certificate payload round trips and malformed/missing data, local PEM loading,
+matching and unrelated Root CA trust, localhost/IP SAN verification, wrong host rejection,
+CA/usage/EKU rejection, absent SAN without CN fallback, and expired-certificate rejection.
+All earlier tests are retained.
+
+The connection is still unencrypted ordinary TCP and the handshake is still incomplete.
+Certificates are validated, but proof of possession of the server private key belongs to later
+phases. No premaster secret, RSA encryption/decryption, session-key derivation, AES, or finished
+messages are implemented.
