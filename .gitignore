@@ -40,3 +40,6 @@ bin/
 
 ### Mac OS ###
 .DS_Store
+
+# Generated local educational certificates and private-key keystore
+/certificates/

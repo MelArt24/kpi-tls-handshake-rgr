@@ -101,3 +101,54 @@ for another exchange: each run should show different random values. The address 
 Tests retain the Phase 2 transport coverage with the new message types and add random-size,
 independent-generation, Base64 round-trip, valid-payload, malformed-Base64, wrong-length,
 missing-field, and unexpected-type checks.
+
+## Phase 4
+Phase 4 adds an offline local educational PKI generator. It creates an RSA-2048 Root CA
+key pair and a separate RSA-2048 server key pair using JCA and secure randomness.
+Bouncy Castle constructs real X.509 certificates; both are signed with `SHA256withRSA`.
+
+The self-signed Root CA has subject `CN=RGR Root CA`, a five-year validity period,
+critical CA BasicConstraints, and `keyCertSign` / `cRLSign` key usages.
+The one-year server certificate has subject `CN=localhost`, issuer `CN=RGR Root CA`,
+and the server public key. It includes non-CA BasicConstraints, `digitalSignature` /
+`keyEncipherment` usages, `serverAuth` extended usage, and SAN entries `DNS:localhost`
+and `IP:127.0.0.1`. Both certificates have positive random serial numbers.
+
+The Root CA private key is used only in memory to issue the certificates and is not saved.
+The server private key is stored in a password-protected PKCS#12 keystore with alias `server`
+and the ordered server/Root CA certificate chain. The fixed password `rgr-local-only`
+is for local educational use only and is not suitable for production credentials.
+No private key is included in either certificate file or printed to the console.
+
+### IntelliJ IDEA
+
+Run `main` in `certificate/CertificateGeneratorMain.kt` with the working directory set
+to the project root, or run the `generateCertificates` Gradle task.
+The existing server/client run instructions remain unchanged.
+
+### Windows terminals
+
+Build and run all tests: `./gradlew.bat build`
+
+Generate local credentials: `./gradlew.bat generateCertificates`
+
+The command creates the project-root `certificates/` directory and writes:
+
+- `certificates/root-ca.crt`: PEM X.509 Root CA certificate.
+- `certificates/server.crt`: PEM X.509 server certificate signed by the Root CA.
+- `certificates/server-keystore.p12`: server private key and certificate chain.
+
+Running generation again replaces these three files with a fresh CA and server identity.
+The entire generated directory is gitignored. Do not commit generated credentials.
+The Root CA is not installed in Windows or any other system-wide trust store.
+
+Generation checks validity, verifies both signatures, verifies CA flags, issuer, and
+server public key, then saves the files. It reloads both PEM files using the JVM X.509
+CertificateFactory and checks the saved PKCS#12 private key and chain before reporting success.
+The console shows subjects, issuer, signature algorithms, SAN entries, validity, and output paths.
+Tests generate material in memory and temporary directories rather than using local credentials.
+
+Certificates are NOT yet transmitted or validated during the live handshake.
+`runServer` / `runClient` still exchange only `CLIENT_HELLO` / `SERVER_HELLO` and their
+32-byte random values. The connection remains unencrypted ordinary TCP; the handshake
+is incomplete. No premaster secret, key exchange, session keys, or encrypted data are added.

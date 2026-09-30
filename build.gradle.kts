@@ -11,6 +11,7 @@ repositories {
 }
 
 dependencies {
+    implementation("org.bouncycastle:bcpkix-jdk18on:1.83")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
     testImplementation(kotlin("test-junit5"))
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.10.1")
@@ -36,4 +37,12 @@ tasks.register<JavaExec>("runClient") {
     description = "Runs the plaintext TCP client."
     classpath = sourceSets["main"].runtimeClasspath
     mainClass.set("ua.kpi.rgr.client.ClientMainKt")
+}
+
+tasks.register<JavaExec>("generateCertificates") {
+    group = "application"
+    description = "Generates the local educational Root CA and server credentials."
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("ua.kpi.rgr.certificate.CertificateGeneratorMainKt")
+    workingDir = rootProject.projectDir
 }
