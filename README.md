@@ -203,3 +203,58 @@ The connection is still unencrypted ordinary TCP and the handshake is still inco
 Certificates are validated, but proof of possession of the server private key belongs to later
 phases. No premaster secret, RSA encryption/decryption, session-key derivation, AES, or finished
 messages are implemented.
+
+## Phase 6
+Phase 6 adds `CLIENT_KEY_EXCHANGE`. After the received X.509 server certificate passes
+PKIX, SAN, and usage validation, the client generates a fresh 48-byte premaster secret
+using SecureRandom. Encryption uses the public key from that same authenticated certificate.
+This follows the assignment's simplified historical RSA premaster exchange model.
+
+`crypto/RsaKeyExchange.kt` uses RSA-OAEP with SHA-256 and explicitly specifies SHA-256,
+MGF1-SHA256, and the empty default label for both encryption and decryption. Only the RSA
+ciphertext travels over TCP, Base64-encoded in the JSON `encryptedPremaster` payload field.
+The raw premaster is never transmitted or logged. No fingerprint is sent in the protocol.
+
+Before accepting a client, `certificate/ServerCredentialsLoader.kt` loads the PKCS#12 private
+key using the existing `server` alias and local educational password. It requires an RSA
+private-key entry and X.509 chain, compares the leaf DER with `server.crt`, and checks that
+the private key's RSA modulus matches the certificate public key. Missing or mismatched
+credentials stop startup; run generateCertificates to create a consistent set.
+The server sends this checked certificate, waits for CLIENT_KEY_EXCHANGE, and decrypts
+with the matching private key. Wrong types, missing fields, invalid Base64, empty or invalid
+ciphertext, failed OAEP decryption, and a recovered length other than 48 bytes are rejected.
+
+Both processes keep raw `clientRandom`, `serverRandom`, and `premasterSecret` byte arrays
+locally during the exchange for the next phase. After decryption, both consoles display a
+local SHA-256 premaster fingerprint so matching secrets can be demonstrated without printing
+the raw secret. These fingerprints are educational diagnostics only.
+
+### IntelliJ IDEA
+
+Generate certificates first, then run ServerMain and ClientMain separately as before.
+Keep the project root as the working directory. Credentials are not regenerated at startup.
+
+### Windows terminals
+
+Build and run all tests: `./gradlew.bat build`
+
+Prerequisite: `./gradlew.bat generateCertificates`
+
+First terminal: `./gradlew.bat runServer`
+
+Second terminal: `./gradlew.bat runClient`
+
+Verify SERVER AUTHENTICATED appears before the client key exchange. The client generates
+48 premaster bytes and sends a 256-byte RSA-2048 ciphertext. The server recovers 48 bytes.
+The two Premaster SHA-256 values must match, and both processes terminate cleanly.
+No new server acknowledgement message is added.
+
+Tests cover fresh premaster generation, explicit OAEP interoperability, exact byte recovery,
+wrong keys, corrupted ciphertext, incompatible keys and OAEP parameters, length validation,
+payload round trips and rejection, and temporary PKCS#12 loading/mismatch checks.
+An in-memory test validates the certificate before encrypting for the loaded server private key.
+All Phase 1-5 tests are retained. Generated credentials remain gitignored.
+
+Session keys are NOT derived yet. Traffic is not symmetrically encrypted: the hello messages
+remain readable JSON and only the premaster value is RSA-encrypted. The full handshake is
+still incomplete. No master secret, HKDF, AES, finished messages, or application data is added.

@@ -1,10 +1,12 @@
 package ua.kpi.rgr.server
 
-import ua.kpi.rgr.certificate.CertificateConfig
-import ua.kpi.rgr.certificate.CertificateLoader
+import ua.kpi.rgr.certificate.ServerCredentialsLoader
 import ua.kpi.rgr.certificate.ServerCertificatePayload
 import ua.kpi.rgr.common.NetworkConfig
 import ua.kpi.rgr.crypto.CryptoRandom
+import ua.kpi.rgr.crypto.PremasterSecret
+import ua.kpi.rgr.crypto.RsaKeyExchange
+import ua.kpi.rgr.protocol.ClientKeyExchangePayload
 import ua.kpi.rgr.protocol.HelloRandomPayload
 import ua.kpi.rgr.protocol.MessageTransport
 import ua.kpi.rgr.protocol.MessageType
@@ -16,7 +18,7 @@ import java.util.Base64
 
 fun main() {
     try {
-        CertificateLoader.requireFile(CertificateConfig.OUTPUT_DIRECTORY.resolve(CertificateConfig.SERVER_CERTIFICATE_FILE))
+        val credentials = ServerCredentialsLoader.load()
         ServerSocket(NetworkConfig.PORT, 1, InetAddress.getByName(NetworkConfig.HOST)).use { server ->
             println("[SERVER] Started on ${NetworkConfig.HOST}:${NetworkConfig.PORT}.")
             println("[SERVER] Waiting for client...")
@@ -34,7 +36,7 @@ fun main() {
                 println("\n[2] SERVER_HELLO")
                 val serverRandom = CryptoRandom.generateRandomBytes()
                 val encodedServerRandom = Base64.getEncoder().encodeToString(serverRandom)
-                val serverCertificate = CertificateLoader.loadServer()
+                val serverCertificate = credentials.certificate
                 println("[SERVER] Loaded server certificate.")
                 println("[SERVER] Subject: ${serverCertificate.subjectX500Principal}")
                 println("[SERVER] Issuer: ${serverCertificate.issuerX500Principal}")
@@ -51,6 +53,17 @@ fun main() {
                 println("[SERVER] Sending SERVER_HELLO...")
                 transport.send(response)
                 println("[SERVER] Hello exchange completed.")
+
+                println("\n[4] CLIENT KEY EXCHANGE")
+                val keyExchange = transport.receive()
+                val encryptedPremaster = ClientKeyExchangePayload.decode(keyExchange)
+                println("[SERVER] Received CLIENT_KEY_EXCHANGE")
+                println("[SERVER] Encrypted premaster length: ${encryptedPremaster.size} bytes")
+                println("[SERVER] Decrypting with server RSA private key...")
+                val premasterSecret = RsaKeyExchange.decryptPremaster(encryptedPremaster, credentials.privateKey)
+                println("[SERVER] Premaster recovered: ${premasterSecret.size} bytes")
+                println("[SERVER] Premaster SHA-256: ${PremasterSecret.fingerprint(premasterSecret)}")
+                println("[SERVER] Client key exchange completed.")
             }
         }
         println("[SERVER] Connection closed. Server stopped.")

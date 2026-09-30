@@ -6,6 +6,9 @@ import ua.kpi.rgr.certificate.ServerCertificatePayload
 import ua.kpi.rgr.certificate.ServerCertificateValidator
 import ua.kpi.rgr.common.NetworkConfig
 import ua.kpi.rgr.crypto.CryptoRandom
+import ua.kpi.rgr.crypto.PremasterSecret
+import ua.kpi.rgr.crypto.RsaKeyExchange
+import ua.kpi.rgr.protocol.ClientKeyExchangePayload
 import ua.kpi.rgr.protocol.HelloRandomPayload
 import ua.kpi.rgr.protocol.MessageTransport
 import ua.kpi.rgr.protocol.MessageType
@@ -59,6 +62,18 @@ fun main() {
             println("\n========================================")
             println("SERVER AUTHENTICATED")
             println("========================================")
+
+            println("\n[4] CLIENT KEY EXCHANGE")
+            val premasterSecret = PremasterSecret.generate()
+            println("[CLIENT] Generated premaster secret: ${premasterSecret.size} bytes")
+            println("[CLIENT] Encrypting premaster using authenticated server RSA public key...")
+            val encryptedPremaster = RsaKeyExchange.encryptPremaster(premasterSecret, serverCertificate.publicKey)
+            println("[CLIENT] RSA-OAEP encryption: OK")
+            println("[CLIENT] Encrypted premaster length: ${encryptedPremaster.size} bytes")
+            println("[CLIENT] Premaster SHA-256: ${PremasterSecret.fingerprint(premasterSecret)}")
+            println("[CLIENT] Sending CLIENT_KEY_EXCHANGE...")
+            transport.send(ClientKeyExchangePayload.encode(encryptedPremaster))
+            println("[CLIENT] CLIENT_KEY_EXCHANGE sent.")
         }
         println("[CLIENT] Connection closed.")
     } catch (error: ConnectException) {
