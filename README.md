@@ -1,4 +1,5 @@
-# kpi-tls-handshake-rgr                                                                                                   
+# kpi-tls-handshake-rgr      
+# Basic Version
 
 # Steps of implementation:                           
 Steps of implementation will be added to track the progress
