@@ -314,3 +314,57 @@ actual byte contents rather than only fingerprints. All earlier test coverage is
 
 AES encryption, IVs/nonces, READY/finished messages, and application data are NOT implemented.
 Traffic is not symmetrically encrypted, and the full handshake remains incomplete.
+
+## Phase 8
+Phase 8 introduces AES-256-GCM encrypted readiness confirmations after session-key derivation.
+The JDK AES/GCM/NoPadding cipher uses 32-byte keys, a fresh SecureRandom 12-byte IV for every
+encryption, and a 128-bit authentication tag. The ciphertext returned by doFinal includes the
+encrypted plaintext followed by the tag; there is no separate tag field.
+
+CLIENT_FINISHED carries encrypted UTF-8 CLIENT_READY protected by clientWriteKey.
+After authenticating and verifying that exact value, the server sends SERVER_FINISHED carrying
+encrypted SERVER_READY protected by serverWriteKey. Both use the existing JSON line transport,
+with only Base64 `iv` and `ciphertext` payload fields. READY plaintext is never sent in JSON.
+The UTF-8 protocol type name (CLIENT_FINISHED or SERVER_FINISHED) is AES-GCM AAD, binding the
+visible envelope type to its encrypted contents.
+
+Wrong keys, modified ciphertext/tag/IV, incorrect AAD, wrong READY values, and malformed
+payloads abort the handshake. No unauthenticated plaintext is returned and no plaintext fallback
+or alternate-key retry exists. Raw session keys remain local and are never transmitted or logged.
+Directional key fingerprints from Phase 7 remain local educational diagnostics.
+
+### IntelliJ IDEA
+
+Generate certificates first, then run ServerMain and ClientMain separately with the project
+root as working directory, as in previous phases.
+
+### Windows terminals
+
+Build and run all tests: `./gradlew.bat build`
+
+Prerequisite: `./gradlew.bat generateCertificates`
+
+First terminal: `./gradlew.bat runServer`
+
+Second terminal: `./gradlew.bat runClient`
+
+After authentication, premaster exchange, and key derivation, both consoles show
+`[6] ENCRYPTED HANDSHAKE CONFIRMATION`. The server verifies CLIENT_READY before sending
+SERVER_FINISHED. The client verifies SERVER_READY before reporting EDUCATIONAL TLS-LIKE
+HANDSHAKE COMPLETED and SECURE SESSION ESTABLISHED. Both processes then close cleanly.
+The server reports its confirmation sent; there is no additional client acknowledgement.
+
+This is an educational TLS-like simulation, not standards-compliant real TLS. The two Finished
+messages are encrypted READY confirmations, not real TLS transcript-bound Finished verify_data.
+The handshake is considered complete after both READY confirmations succeed. The client can
+observe completion after verifying the server's response; the server does not receive a further
+acknowledgement proving client receipt. No transcript hashes or new acknowledgement are added.
+
+Tests cover AES-GCM byte/UTF-8 round trips, IV size/freshness, wrong keys, ciphertext/tag/IV/AAD
+tampering, invalid lengths, Finished JSON framing and payload validation, exact READY validation,
+message-type binding, and directional keys derived independently from the same Phase 7 inputs.
+All prior tests remain. Generated certificate material stays gitignored.
+
+Protected application-data transfer, chat, file transfer, and interactive loops are NOT implemented.
+No APPLICATION_DATA type or real SSL/TLS sockets are added. Only the READY confirmations are
+AES-GCM encrypted in this phase; earlier handshake messages retain their existing representation.

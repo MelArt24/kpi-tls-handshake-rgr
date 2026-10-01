@@ -6,11 +6,13 @@ import ua.kpi.rgr.certificate.ServerCertificatePayload
 import ua.kpi.rgr.certificate.ServerCertificateValidator
 import ua.kpi.rgr.common.NetworkConfig
 import ua.kpi.rgr.crypto.CryptoRandom
+import ua.kpi.rgr.crypto.AesGcm
 import ua.kpi.rgr.crypto.CryptoFingerprint
 import ua.kpi.rgr.crypto.SessionKeyDerivation
 import ua.kpi.rgr.crypto.PremasterSecret
 import ua.kpi.rgr.crypto.RsaKeyExchange
 import ua.kpi.rgr.protocol.ClientKeyExchangePayload
+import ua.kpi.rgr.protocol.FinishedPayload
 import ua.kpi.rgr.protocol.HelloRandomPayload
 import ua.kpi.rgr.protocol.MessageTransport
 import ua.kpi.rgr.protocol.MessageType
@@ -86,6 +88,30 @@ fun main() {
             println("[CLIENT] clientWriteKey SHA-256: ${CryptoFingerprint.sha256Hex(sessionKeys.clientWriteKey)}")
             println("[CLIENT] serverWriteKey SHA-256: ${CryptoFingerprint.sha256Hex(sessionKeys.serverWriteKey)}")
             println("[CLIENT] Session key derivation completed.")
+
+            println("\n[6] ENCRYPTED HANDSHAKE CONFIRMATION")
+            println("[CLIENT] Encrypting CLIENT_READY with clientWriteKey...")
+            val clientFinished = AesGcm.encrypt(
+                FinishedPayload.CLIENT_READY.toByteArray(Charsets.UTF_8),
+                sessionKeys.clientWriteKey,
+                MessageType.CLIENT_FINISHED.name.toByteArray(Charsets.UTF_8),
+            )
+            println("[CLIENT] Algorithm: AES-256-GCM")
+            println("[CLIENT] IV length: ${clientFinished.iv.size} bytes")
+            println("[CLIENT] Sending CLIENT_FINISHED...")
+            transport.send(FinishedPayload.encode(MessageType.CLIENT_FINISHED, clientFinished))
+
+            val serverFinished = transport.receive()
+            println("[CLIENT] Decrypting SERVER_FINISHED with serverWriteKey...")
+            val serverReady = FinishedPayload.decryptReady(serverFinished, MessageType.SERVER_FINISHED, sessionKeys.serverWriteKey)
+            println("[CLIENT] Received SERVER_FINISHED")
+            println("[CLIENT] AES-GCM authentication: OK")
+            println("[CLIENT] Decrypted confirmation: $serverReady")
+            println("[CLIENT] Server readiness confirmed.")
+            println("\n========================================")
+            println("EDUCATIONAL TLS-LIKE HANDSHAKE COMPLETED")
+            println("SECURE SESSION ESTABLISHED")
+            println("========================================")
         }
         println("[CLIENT] Connection closed.")
     } catch (error: ConnectException) {

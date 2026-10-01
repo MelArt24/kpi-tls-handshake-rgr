@@ -4,11 +4,13 @@ import ua.kpi.rgr.certificate.ServerCredentialsLoader
 import ua.kpi.rgr.certificate.ServerCertificatePayload
 import ua.kpi.rgr.common.NetworkConfig
 import ua.kpi.rgr.crypto.CryptoRandom
+import ua.kpi.rgr.crypto.AesGcm
 import ua.kpi.rgr.crypto.CryptoFingerprint
 import ua.kpi.rgr.crypto.SessionKeyDerivation
 import ua.kpi.rgr.crypto.PremasterSecret
 import ua.kpi.rgr.crypto.RsaKeyExchange
 import ua.kpi.rgr.protocol.ClientKeyExchangePayload
+import ua.kpi.rgr.protocol.FinishedPayload
 import ua.kpi.rgr.protocol.HelloRandomPayload
 import ua.kpi.rgr.protocol.MessageTransport
 import ua.kpi.rgr.protocol.MessageType
@@ -76,6 +78,28 @@ fun main() {
                 println("[SERVER] clientWriteKey SHA-256: ${CryptoFingerprint.sha256Hex(sessionKeys.clientWriteKey)}")
                 println("[SERVER] serverWriteKey SHA-256: ${CryptoFingerprint.sha256Hex(sessionKeys.serverWriteKey)}")
                 println("[SERVER] Session key derivation completed.")
+
+                println("\n[6] ENCRYPTED HANDSHAKE CONFIRMATION")
+                val clientFinished = transport.receive()
+                println("[SERVER] Decrypting CLIENT_FINISHED with clientWriteKey...")
+                val clientReady = FinishedPayload.decryptReady(clientFinished, MessageType.CLIENT_FINISHED, sessionKeys.clientWriteKey)
+                println("[SERVER] Received CLIENT_FINISHED")
+                println("[SERVER] AES-GCM authentication: OK")
+                println("[SERVER] Decrypted confirmation: $clientReady")
+                println("[SERVER] Client readiness confirmed.")
+
+                println("[SERVER] Encrypting SERVER_READY with serverWriteKey...")
+                val serverFinished = AesGcm.encrypt(
+                    FinishedPayload.SERVER_READY.toByteArray(Charsets.UTF_8),
+                    sessionKeys.serverWriteKey,
+                    MessageType.SERVER_FINISHED.name.toByteArray(Charsets.UTF_8),
+                )
+                println("[SERVER] Algorithm: AES-256-GCM")
+                println("[SERVER] IV length: ${serverFinished.iv.size} bytes")
+                println("[SERVER] Sending SERVER_FINISHED...")
+                transport.send(FinishedPayload.encode(MessageType.SERVER_FINISHED, serverFinished))
+                println("[SERVER] Encrypted handshake confirmation completed.")
+                println("[SERVER] Educational secure session established; SERVER_FINISHED sent.")
             }
         }
         println("[SERVER] Connection closed. Server stopped.")
