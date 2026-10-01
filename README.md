@@ -482,3 +482,45 @@ contents and cryptographic validation tests are preserved. Generated credentials
 
 Packet loss, retransmission, acknowledgements, latency/bandwidth simulation, routing, multiple
 nodes, Node/Hub abstractions, and Double Star topology are NOT implemented.
+
+
+## Phase 11
+
+Handshake orchestration was extracted from ClientMain and ServerMain into reusable
+HandshakeInitiator and HandshakeResponder components. They receive an already created
+MessageTransport and injected trust information (Root CA and expected identity) or responder
+credentials. They neither open sockets nor load fixed credential paths. Each establish call
+keeps its random values, premaster, and derived keys local to that connection.
+
+A completed authenticated Finished exchange returns EstablishedSecureSession. Its sendText
+and receiveText operations reuse SecureApplicationData and automatically choose direction
+from SessionRole: INITIATOR sends with clientWriteKey and receives with serverWriteKey;
+RESPONDER does the reverse. Raw keys and the transport are private. Direction-specific
+application AAD, encrypted /exit, and graceful console EOF behavior are unchanged.
+
+The mains now only load credentials, own socket lifetimes, invoke the handshake, and run
+the alternating console chat. Handshake logging is injected through a lightweight callback
+and quiet by default; the demonstration entry points enable the existing educational step
+output and packet diagnostics.
+
+Wire behavior is unchanged: the same message types, payloads, cryptographic algorithms,
+and RadioPacket structure remain. MessageTransport/PacketTransport still carries every
+handshake and chat message. The maximum complete physical frame remains 256 bytes including
+LF; certificates, RSA ciphertext, and long encrypted chat still fragment transparently.
+
+Run commands remain:
+- ./gradlew.bat build
+- ./gradlew.bat generateCertificates
+- ./gradlew.bat runServer --console=plain
+- ./gradlew.bat runClient --console=plain
+
+Loopback integration tests establish real sessions using in-memory generated credentials,
+exchange Ukrainian text and long fragmented chat, reject ciphertext from an independent
+session, and abort authentication against an unrelated Root CA. Test workers have bounded
+timeouts and connection cleanup. All earlier protocol and cryptographic tests remain.
+
+Repository cleanup removes the accidentally tracked generated .kotlin/sessions runtime
+artifact and ignores the root /.kotlin/ directory. Sources and Gradle wrapper files are
+unaffected. This refactor prepares for future participants acting as either initiator or
+responder; Double Star topology, nodes, routing, and concurrent production sessions are
+NOT implemented.
