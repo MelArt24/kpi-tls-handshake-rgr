@@ -19,7 +19,7 @@ class PremasterSecretTest {
     fun `fingerprint is uppercase SHA256 hex`() {
         assertEquals(
             "BA7816BF8F01CFEA414140DE5DAE2223B00361A396177A9CB410FF61F20015AD",
-            PremasterSecret.fingerprint("abc".toByteArray(Charsets.UTF_8)),
+            CryptoFingerprint.sha256Hex("abc".toByteArray(Charsets.UTF_8)),
         )
     }
 }

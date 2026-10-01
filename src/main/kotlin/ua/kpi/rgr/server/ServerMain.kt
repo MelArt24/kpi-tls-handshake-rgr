@@ -4,6 +4,8 @@ import ua.kpi.rgr.certificate.ServerCredentialsLoader
 import ua.kpi.rgr.certificate.ServerCertificatePayload
 import ua.kpi.rgr.common.NetworkConfig
 import ua.kpi.rgr.crypto.CryptoRandom
+import ua.kpi.rgr.crypto.CryptoFingerprint
+import ua.kpi.rgr.crypto.SessionKeyDerivation
 import ua.kpi.rgr.crypto.PremasterSecret
 import ua.kpi.rgr.crypto.RsaKeyExchange
 import ua.kpi.rgr.protocol.ClientKeyExchangePayload
@@ -62,8 +64,18 @@ fun main() {
                 println("[SERVER] Decrypting with server RSA private key...")
                 val premasterSecret = RsaKeyExchange.decryptPremaster(encryptedPremaster, credentials.privateKey)
                 println("[SERVER] Premaster recovered: ${premasterSecret.size} bytes")
-                println("[SERVER] Premaster SHA-256: ${PremasterSecret.fingerprint(premasterSecret)}")
+                println("[SERVER] Premaster SHA-256: ${CryptoFingerprint.sha256Hex(premasterSecret)}")
                 println("[SERVER] Client key exchange completed.")
+
+                println("\n[5] SESSION KEY DERIVATION")
+                println("[SERVER] Deriving session keys with HKDF-SHA256...")
+                println("[SERVER] Inputs: premaster ${premasterSecret.size} bytes, clientRandom ${clientRandom.size} bytes, serverRandom ${serverRandom.size} bytes")
+                val sessionKeys = SessionKeyDerivation.derive(premasterSecret, clientRandom, serverRandom)
+                println("[SERVER] clientWriteKey derived: ${sessionKeys.clientWriteKey.size} bytes")
+                println("[SERVER] serverWriteKey derived: ${sessionKeys.serverWriteKey.size} bytes")
+                println("[SERVER] clientWriteKey SHA-256: ${CryptoFingerprint.sha256Hex(sessionKeys.clientWriteKey)}")
+                println("[SERVER] serverWriteKey SHA-256: ${CryptoFingerprint.sha256Hex(sessionKeys.serverWriteKey)}")
+                println("[SERVER] Session key derivation completed.")
             }
         }
         println("[SERVER] Connection closed. Server stopped.")

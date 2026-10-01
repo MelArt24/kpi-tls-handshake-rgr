@@ -6,6 +6,8 @@ import ua.kpi.rgr.certificate.ServerCertificatePayload
 import ua.kpi.rgr.certificate.ServerCertificateValidator
 import ua.kpi.rgr.common.NetworkConfig
 import ua.kpi.rgr.crypto.CryptoRandom
+import ua.kpi.rgr.crypto.CryptoFingerprint
+import ua.kpi.rgr.crypto.SessionKeyDerivation
 import ua.kpi.rgr.crypto.PremasterSecret
 import ua.kpi.rgr.crypto.RsaKeyExchange
 import ua.kpi.rgr.protocol.ClientKeyExchangePayload
@@ -70,10 +72,20 @@ fun main() {
             val encryptedPremaster = RsaKeyExchange.encryptPremaster(premasterSecret, serverCertificate.publicKey)
             println("[CLIENT] RSA-OAEP encryption: OK")
             println("[CLIENT] Encrypted premaster length: ${encryptedPremaster.size} bytes")
-            println("[CLIENT] Premaster SHA-256: ${PremasterSecret.fingerprint(premasterSecret)}")
+            println("[CLIENT] Premaster SHA-256: ${CryptoFingerprint.sha256Hex(premasterSecret)}")
             println("[CLIENT] Sending CLIENT_KEY_EXCHANGE...")
             transport.send(ClientKeyExchangePayload.encode(encryptedPremaster))
             println("[CLIENT] CLIENT_KEY_EXCHANGE sent.")
+
+            println("\n[5] SESSION KEY DERIVATION")
+            println("[CLIENT] Deriving session keys with HKDF-SHA256...")
+            println("[CLIENT] Inputs: premaster ${premasterSecret.size} bytes, clientRandom ${clientRandom.size} bytes, serverRandom ${serverRandom.size} bytes")
+            val sessionKeys = SessionKeyDerivation.derive(premasterSecret, clientRandom, serverRandom)
+            println("[CLIENT] clientWriteKey derived: ${sessionKeys.clientWriteKey.size} bytes")
+            println("[CLIENT] serverWriteKey derived: ${sessionKeys.serverWriteKey.size} bytes")
+            println("[CLIENT] clientWriteKey SHA-256: ${CryptoFingerprint.sha256Hex(sessionKeys.clientWriteKey)}")
+            println("[CLIENT] serverWriteKey SHA-256: ${CryptoFingerprint.sha256Hex(sessionKeys.serverWriteKey)}")
+            println("[CLIENT] Session key derivation completed.")
         }
         println("[CLIENT] Connection closed.")
     } catch (error: ConnectException) {

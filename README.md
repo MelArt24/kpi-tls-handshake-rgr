@@ -258,3 +258,59 @@ All Phase 1-5 tests are retained. Generated credentials remain gitignored.
 Session keys are NOT derived yet. Traffic is not symmetrically encrypted: the hello messages
 remain readable JSON and only the premaster value is RSA-encrypted. The full handshake is
 still incomplete. No master secret, HKDF, AES, finished messages, or application data is added.
+
+## Phase 7
+Client and server now independently derive two directional session keys after the RSA
+premaster exchange. The inputs are the locally retained 48-byte premaster secret,
+32-byte clientRandom, and 32-byte serverRandom. Invalid input lengths are rejected.
+
+`crypto/HkdfSha256.kt` implements RFC 5869 Extract-and-Expand with JDK HmacSHA256,
+Mac, and SecretKeySpec, without additional dependencies. Expansion supports zero output
+bytes and rejects negative lengths or lengths exceeding 255 * 32 = 8160 bytes.
+
+The project's educational KDF design is explicit:
+
+- IKM: premasterSecret.
+- Salt: clientRandom || serverRandom, in that order (64 bytes).
+- Info: `kpi-rgr-tls-session-keys-v1`, encoded as UTF-8.
+- Output: 64 bytes.
+- First 32 bytes: clientWriteKey for future client-to-server traffic.
+- Next 32 bytes: serverWriteKey for future server-to-client traffic.
+
+`crypto/SessionKeyDerivation.kt` returns SessionKeys containing the two raw 32-byte arrays,
+retained locally on each side for the next phase. This is the specified project KDF, not
+an implementation of the complete TLS 1.2 PRF or a migration to TLS 1.3.
+
+Session keys are NEVER sent over TCP and raw keys are never logged. The generic
+CryptoFingerprint helper preserves the existing uppercase SHA-256 diagnostic format for
+premaster and key fingerprints. Each process prints its local clientWriteKey and serverWriteKey
+fingerprints: corresponding directions must match between processes, while the two directions
+differ. No protocol message types or payload fields were added.
+
+### IntelliJ IDEA
+
+Run ServerMain and ClientMain separately with the project root as working directory,
+after generating certificates as in previous phases.
+
+### Windows terminals
+
+Build and run all tests: `./gradlew.bat build`
+
+Prerequisite: `./gradlew.bat generateCertificates`
+
+First terminal: `./gradlew.bat runServer`
+
+Second terminal: `./gradlew.bat runClient`
+
+Verify SERVER AUTHENTICATED, the premaster exchange, and `[5] SESSION KEY DERIVATION`.
+Both processes report two 32-byte keys and Session key derivation completed, then exit.
+Compare clientWriteKey SHA-256 client/server values and serverWriteKey SHA-256 client/server
+values independently. Generated credentials remain gitignored.
+
+Tests include published RFC 5869 SHA-256 PRK/OKM vectors (Appendices A.1 and A.3),
+multiple-block expansion, empty output, maximum/negative lengths, deterministic directional
+key equality, input sensitivity and ordering, and invalid input sizes. Key tests compare
+actual byte contents rather than only fingerprints. All earlier test coverage is preserved.
+
+AES encryption, IVs/nonces, READY/finished messages, and application data are NOT implemented.
+Traffic is not symmetrically encrypted, and the full handshake remains incomplete.

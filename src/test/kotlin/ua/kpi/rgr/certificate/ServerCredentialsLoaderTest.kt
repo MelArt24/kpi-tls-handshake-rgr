@@ -2,6 +2,7 @@ package ua.kpi.rgr.certificate
 
 import org.junit.jupiter.api.io.TempDir
 import ua.kpi.rgr.crypto.PremasterSecret
+import ua.kpi.rgr.crypto.CryptoFingerprint
 import ua.kpi.rgr.crypto.RsaKeyExchange
 import java.io.IOException
 import java.nio.file.Files
@@ -42,7 +43,7 @@ class ServerCredentialsLoaderTest {
         val encrypted = RsaKeyExchange.encryptPremaster(premaster, server.publicKey)
         val decrypted = RsaKeyExchange.decryptPremaster(encrypted, credentials.privateKey)
         assertContentEquals(premaster, decrypted)
-        assertEquals(PremasterSecret.fingerprint(premaster), PremasterSecret.fingerprint(decrypted))
+        assertEquals(CryptoFingerprint.sha256Hex(premaster), CryptoFingerprint.sha256Hex(decrypted))
     }
 
     @Test
