@@ -27,16 +27,20 @@ kotlin {
 
 tasks.register<JavaExec>("runServer") {
     group = "application"
-    description = "Runs the plaintext TCP server."
+    description = "Runs the educational handshake and encrypted chat server."
     classpath = sourceSets["main"].runtimeClasspath
     mainClass.set("ua.kpi.rgr.server.ServerMainKt")
+    standardInput = System.`in`
+    jvmArgs("-Dfile.encoding=UTF-8")
 }
 
 tasks.register<JavaExec>("runClient") {
     group = "application"
-    description = "Runs the plaintext TCP client."
+    description = "Runs the educational handshake and encrypted chat client."
     classpath = sourceSets["main"].runtimeClasspath
     mainClass.set("ua.kpi.rgr.client.ClientMainKt")
+    standardInput = System.`in`
+    jvmArgs("-Dfile.encoding=UTF-8")
 }
 
 tasks.register<JavaExec>("generateCertificates") {

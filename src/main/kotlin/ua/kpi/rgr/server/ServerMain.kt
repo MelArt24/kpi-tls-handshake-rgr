@@ -5,6 +5,7 @@ import ua.kpi.rgr.certificate.ServerCertificatePayload
 import ua.kpi.rgr.common.NetworkConfig
 import ua.kpi.rgr.crypto.CryptoRandom
 import ua.kpi.rgr.crypto.AesGcm
+import ua.kpi.rgr.crypto.SecureApplicationData
 import ua.kpi.rgr.crypto.CryptoFingerprint
 import ua.kpi.rgr.crypto.SessionKeyDerivation
 import ua.kpi.rgr.crypto.PremasterSecret
@@ -100,6 +101,24 @@ fun main() {
                 transport.send(FinishedPayload.encode(MessageType.SERVER_FINISHED, serverFinished))
                 println("[SERVER] Encrypted handshake confirmation completed.")
                 println("[SERVER] Educational secure session established; SERVER_FINISHED sent.")
+
+                val console = System.`in`.bufferedReader(Charsets.UTF_8)
+                println("[SERVER] Secure chat started. Reply after each client message; type /exit to close.")
+                while (true) {
+                    val text = SecureApplicationData.decryptClientToServer(transport.receive(), sessionKeys)
+                    if (text == SecureApplicationData.EXIT_COMMAND) {
+                        println("[SERVER] Client ended the chat.")
+                        break
+                    }
+                    println("[SERVER] Client: $text")
+                    print("[SERVER] You: ")
+                    System.out.flush()
+                    val reply = console.readLine() ?: SecureApplicationData.EXIT_COMMAND
+                    transport.send(SecureApplicationData.encryptServerToClient(reply, sessionKeys))
+                    println("[SERVER] Sent encrypted APPLICATION_DATA.")
+                    if (reply == SecureApplicationData.EXIT_COMMAND) break
+                }
+                println("[SERVER] Secure chat closed.")
             }
         }
         println("[SERVER] Connection closed. Server stopped.")

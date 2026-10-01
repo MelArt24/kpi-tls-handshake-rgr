@@ -9,4 +9,5 @@ enum class MessageType {
     CLIENT_KEY_EXCHANGE,
     CLIENT_FINISHED,
     SERVER_FINISHED,
+    APPLICATION_DATA,
 }

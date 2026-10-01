@@ -7,6 +7,7 @@ import ua.kpi.rgr.certificate.ServerCertificateValidator
 import ua.kpi.rgr.common.NetworkConfig
 import ua.kpi.rgr.crypto.CryptoRandom
 import ua.kpi.rgr.crypto.AesGcm
+import ua.kpi.rgr.crypto.SecureApplicationData
 import ua.kpi.rgr.crypto.CryptoFingerprint
 import ua.kpi.rgr.crypto.SessionKeyDerivation
 import ua.kpi.rgr.crypto.PremasterSecret
@@ -112,6 +113,25 @@ fun main() {
             println("EDUCATIONAL TLS-LIKE HANDSHAKE COMPLETED")
             println("SECURE SESSION ESTABLISHED")
             println("========================================")
+
+            val console = System.`in`.bufferedReader(Charsets.UTF_8)
+            println("[CLIENT] Secure chat started. Type /exit to close; take turns with the server.")
+            while (true) {
+                print("[CLIENT] You: ")
+                System.out.flush()
+                val text = console.readLine() ?: SecureApplicationData.EXIT_COMMAND
+                transport.send(SecureApplicationData.encryptClientToServer(text, sessionKeys))
+                println("[CLIENT] Sent encrypted APPLICATION_DATA.")
+                if (text == SecureApplicationData.EXIT_COMMAND) break
+
+                val reply = SecureApplicationData.decryptServerToClient(transport.receive(), sessionKeys)
+                if (reply == SecureApplicationData.EXIT_COMMAND) {
+                    println("[CLIENT] Server ended the chat.")
+                    break
+                }
+                println("[CLIENT] Server: $reply")
+            }
+            println("[CLIENT] Secure chat closed.")
         }
         println("[CLIENT] Connection closed.")
     } catch (error: ConnectException) {

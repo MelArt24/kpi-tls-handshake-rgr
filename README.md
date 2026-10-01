@@ -368,3 +368,58 @@ All prior tests remain. Generated certificate material stays gitignored.
 Protected application-data transfer, chat, file transfer, and interactive loops are NOT implemented.
 No APPLICATION_DATA type or real SSL/TLS sockets are added. Only the READY confirmations are
 AES-GCM encrypted in this phase; earlier handshake messages retain their existing representation.
+
+## Phase 9
+Protected application-data transfer now provides a simple alternating two-way console chat.
+APPLICATION_DATA was added. One TCP connection performs the educational TLS-like handshake
+once, then reuses its already derived directional session keys for multiple encrypted messages.
+The client starts chat only after validating SERVER_FINISHED. The server starts receiving chat
+only after validating CLIENT_FINISHED and sending SERVER_FINISHED.
+
+Client-to-server messages use clientWriteKey and UTF-8 AAD `APPLICATION_DATA:CLIENT_TO_SERVER`.
+Server-to-client replies use serverWriteKey and UTF-8 AAD `APPLICATION_DATA:SERVER_TO_CLIENT`.
+These constants and key selections are shared in SecureApplicationData. The existing AES-256-GCM
+utility gives every message a fresh random 12-byte IV and a 128-bit authentication tag.
+ApplicationDataPayload preserves the one-JSON-object-per-UTF-8-line transport and contains only
+Base64 `iv` and `ciphertext` fields; ciphertext includes the GCM tag. Plaintext is never put into
+protocol JSON. Received chat text is displayed only after authenticated decryption.
+
+Chat text uses UTF-8, including Ukrainian text such as `Привіт! Як справи?`. The client sends
+one message, the server displays it and prompts for one reply, and the client displays that reply
+before prompting again. There are no concurrent console threads or additional handshakes.
+Wrong keys, wrong directional AAD, tampering, and malformed payloads abort processing.
+
+### IntelliJ IDEA
+
+Run ServerMain and ClientMain separately after generating credentials, with the project root
+as working directory. Use UTF-8 console input/output. Wait for secure chat to start, then type
+in the client console first; reply in the server console when prompted.
+
+### Windows terminals
+
+Build and run all tests: `./gradlew.bat build`
+
+Prerequisite: `./gradlew.bat generateCertificates`
+
+First terminal: `./gradlew.bat runServer --console=plain`
+
+Second terminal: `./gradlew.bat runClient --console=plain`
+
+The Gradle tasks now forward standard input to each application. Use UTF-8 terminals for
+Ukrainian text. After handshake completion, the client shows `[CLIENT] You:`. The server displays
+`[SERVER] Client: ...` and prompts `[SERVER] You:`; the client displays `[CLIENT] Server: ...`.
+Exchange several messages without restarting either process.
+
+Enter `/exit` on either side's turn to stop. It is encrypted as APPLICATION_DATA using the same
+keys and direction-specific AAD, never as a plaintext control command. The sender closes after
+sending it and the receiver closes after decrypting it. Console end-of-input also sends encrypted
+`/exit`. Unexpected network closure remains a clear network/protocol error.
+
+Tests cover encrypted JSON round trips with only IV/ciphertext, malformed fields and incomplete
+tags, exact Ukrainian/UTF-8 and long multiline recovery, independent IVs, wrong keys, opposite
+AAD even with an identical key, ciphertext/tag/IV tampering, encrypted exit, and repeated requests
+and replies using independently handshake-derived keys. All earlier tests are retained.
+Raw keys/premaster are not printed. Generated credentials remain gitignored.
+
+There is no packet-size limit, fragmentation/reassembly, multiple-node abstraction, routing,
+or Double Star topology yet. This remains an educational simulation, not standards-compliant TLS.
