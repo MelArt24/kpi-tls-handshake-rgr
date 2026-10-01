@@ -29,7 +29,7 @@ fun main() {
         CertificateLoader.requireFile(CertificateConfig.OUTPUT_DIRECTORY.resolve(CertificateConfig.ROOT_CERTIFICATE_FILE))
         Socket(NetworkConfig.HOST, NetworkConfig.PORT).use { socket ->
             println("[CLIENT] Connected.")
-            val transport = MessageTransport(socket.getInputStream(), socket.getOutputStream())
+            val transport = MessageTransport(socket.getInputStream(), socket.getOutputStream(), ::println)
             println("\n========== TLS HANDSHAKE SIMULATION ==========\n")
             println("[1] CLIENT_HELLO")
             val clientRandom = CryptoRandom.generateRandomBytes()

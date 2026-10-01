@@ -32,13 +32,13 @@ class MessageTransportTest {
 
         val wire = output.toString(Charsets.UTF_8)
         assertTrue(wire.endsWith("\n"))
-        assertEquals(1, wire.count { it == '\n' })
+        assertTrue(wire.lineSequence().filter { it.isNotEmpty() }.all { it.toByteArray(Charsets.UTF_8).size + 1 <= PacketConfig.MAX_PACKET_BYTES })
         val receiver = MessageTransport(ByteArrayInputStream(output.toByteArray()), ByteArrayOutputStream())
         assertEquals(message, receiver.receive())
     }
 
     @Test
-    fun `successive messages remain separate lines`() {
+    fun `successive logical messages remain separate after reassembly`() {
         val output = ByteArrayOutputStream()
         val sender = MessageTransport(ByteArrayInputStream(byteArrayOf()), output)
         val request = ProtocolMessage(MessageType.CLIENT_HELLO)
@@ -70,8 +70,9 @@ class MessageTransportTest {
         assertTrue(error.message.orEmpty().contains("Connection closed"))
     }
 
-    private fun transportFor(wire: String) = MessageTransport(
-        ByteArrayInputStream(wire.toByteArray(Charsets.UTF_8)),
-        ByteArrayOutputStream(),
-    )
+    private fun transportFor(wire: String): MessageTransport {
+        val output = ByteArrayOutputStream()
+        if (wire.isNotEmpty()) PacketTransport(ByteArrayInputStream(byteArrayOf()), output).sendBytes(wire.toByteArray(Charsets.UTF_8))
+        return MessageTransport(ByteArrayInputStream(output.toByteArray()), ByteArrayOutputStream())
+    }
 }

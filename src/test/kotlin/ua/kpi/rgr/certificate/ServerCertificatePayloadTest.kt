@@ -7,6 +7,7 @@ import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.util.Base64
 import ua.kpi.rgr.protocol.MessageTransport
+import ua.kpi.rgr.protocol.PacketConfig
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -22,14 +23,14 @@ class ServerCertificatePayloadTest {
     }
 
     @Test
-    fun `certificate and random travel together on one JSON line`() {
+    fun `certificate and random travel together through packet frames`() {
         val hello = ProtocolMessage(MessageType.SERVER_HELLO, mapOf(
             "serverRandom" to Base64.getEncoder().encodeToString(ByteArray(32)),
             ServerCertificatePayload.FIELD to ServerCertificatePayload.encode(certificate),
         ))
         val output = ByteArrayOutputStream()
         MessageTransport(ByteArrayInputStream(byteArrayOf()), output).send(hello)
-        assertEquals(1, output.toString(Charsets.UTF_8).count { it == '\n' })
+        assertTrue(output.toString(Charsets.UTF_8).lineSequence().filter { it.isNotEmpty() }.all { it.toByteArray(Charsets.UTF_8).size + 1 <= PacketConfig.MAX_PACKET_BYTES })
         val received = MessageTransport(ByteArrayInputStream(output.toByteArray()), ByteArrayOutputStream()).receive()
         assertEquals(hello, received)
         assertEquals(certificate, ServerCertificatePayload.decode(received))

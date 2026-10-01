@@ -423,3 +423,62 @@ Raw keys/premaster are not printed. Generated credentials remain gitignored.
 
 There is no packet-size limit, fragmentation/reassembly, multiple-node abstraction, routing,
 or Double Star topology yet. This remains an educational simulation, not standards-compliant TLS.
+
+## Phase 10
+A constrained packet layer now sits below ProtocolMessage. MessageTransport still exposes
+send/receive of complete logical messages, but physical framing intentionally changes from
+one logical JSON line to one or more RadioPacket JSON lines.
+
+PacketConfig.MAX_PACKET_BYTES is 256. This limit applies to the entire UTF-8 serialized packet
+JSON plus its one-byte newline delimiter, not merely to its payload. RadioPacket contains
+messageId (a fresh UUID for each logical send), fragmentIndex (zero-based), fragmentCount,
+and payload (Base64 fragment bytes). It contains no logical message type.
+
+MessageTransport first serializes compact logical JSON to UTF-8 bytes. PacketTransport tries
+chunk sizes, serializes every resulting frame, and reduces the chunk size until every measured
+complete frame fits 256 bytes. Metadata and Base64 overhead are included. The receiver reads
+bounded physical frames, validates JSON/Base64 and metadata, requires indexes 0..N-1 with a
+consistent ID/count, and reassembles exact original bytes before parsing ProtocolMessage.
+Oversized frames, inconsistent/skipped/duplicate/out-of-order fragments, malformed packets,
+empty reconstructed messages, incomplete frames, and EOF during reassembly fail clearly.
+Invalid reconstructed logical JSON or UTF-8 remains a protocol error.
+
+All traffic uses this layer: CLIENT_HELLO, certificate-bearing SERVER_HELLO, CLIENT_KEY_EXCHANGE,
+CLIENT_FINISHED, SERVER_FINISHED, and APPLICATION_DATA. Protected application text is encrypted
+first, then placed in ProtocolMessage, serialized, fragmented, and sent. Reassembly and logical
+parsing precede AES-GCM authentication/decryption. Fragmentation provides no cryptographic
+protection; AES-GCM remains responsible for confidentiality and authentication.
+
+Runtime packet diagnostics report message IDs, fragment positions, complete physical frame sizes,
+logical byte sizes, packet counts, and maximum frame size. Packet payloads are never logged.
+Diagnostics are optional and disabled in tests by default.
+
+### IntelliJ IDEA
+
+Run ServerMain and ClientMain separately after generating certificates, as before.
+Observe packet diagnostics during the handshake and chat. IDE metadata is unchanged.
+
+### Windows terminals
+
+Build and run all tests: `./gradlew.bat build`
+
+Prerequisite: `./gradlew.bat generateCertificates`
+
+First terminal: `./gradlew.bat runServer --console=plain`
+
+Second terminal: `./gradlew.bat runClient --console=plain`
+
+Verify each logged frame is at most 256 bytes. The server certificate and RSA key-exchange
+ciphertext span multiple packets, reassemble, and authenticate as before. Send a short chat
+message, then a long Ukrainian message to demonstrate transparent encrypted-data fragmentation.
+The same connection and one handshake serve all chat messages. Encrypted /exit still closes both
+processes cleanly.
+
+Tests measure exact emitted frames including newline for tiny, medium, and large messages;
+verify byte-for-byte UTF-8 recovery, metadata/order and unique IDs; reject malformed/incomplete
+streams; and cover realistic certificate, RSA ciphertext, and long Ukrainian encrypted chat.
+Earlier physical newline-count assumptions were updated for packet framing while logical
+contents and cryptographic validation tests are preserved. Generated credentials remain gitignored.
+
+Packet loss, retransmission, acknowledgements, latency/bandwidth simulation, routing, multiple
+nodes, Node/Hub abstractions, and Double Star topology are NOT implemented.

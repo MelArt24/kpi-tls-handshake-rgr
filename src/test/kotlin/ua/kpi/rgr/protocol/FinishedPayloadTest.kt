@@ -27,7 +27,7 @@ class FinishedPayloadTest {
             val output = ByteArrayOutputStream()
             MessageTransport(ByteArrayInputStream(byteArrayOf()), output).send(message)
             val wire = output.toString(Charsets.UTF_8)
-            assertEquals(1, wire.count { it == '\n' })
+            assertEquals(true, wire.lineSequence().filter { it.isNotEmpty() }.all { it.toByteArray(Charsets.UTF_8).size + 1 <= PacketConfig.MAX_PACKET_BYTES })
             assertFalse(wire.contains(ready))
             assertFalse(wire.contains(Base64.getEncoder().encodeToString(key)))
             val received = MessageTransport(ByteArrayInputStream(output.toByteArray()), ByteArrayOutputStream()).receive()

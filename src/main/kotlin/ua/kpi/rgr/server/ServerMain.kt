@@ -8,7 +8,6 @@ import ua.kpi.rgr.crypto.AesGcm
 import ua.kpi.rgr.crypto.SecureApplicationData
 import ua.kpi.rgr.crypto.CryptoFingerprint
 import ua.kpi.rgr.crypto.SessionKeyDerivation
-import ua.kpi.rgr.crypto.PremasterSecret
 import ua.kpi.rgr.crypto.RsaKeyExchange
 import ua.kpi.rgr.protocol.ClientKeyExchangePayload
 import ua.kpi.rgr.protocol.FinishedPayload
@@ -29,7 +28,7 @@ fun main() {
             println("[SERVER] Waiting for client...")
             server.accept().use { client ->
                 println("[SERVER] Client connected: ${client.remoteSocketAddress}")
-                val transport = MessageTransport(client.getInputStream(), client.getOutputStream())
+                val transport = MessageTransport(client.getInputStream(), client.getOutputStream(), ::println)
                 val request = transport.receive()
                 val clientRandom = HelloRandomPayload.decode(request, MessageType.CLIENT_HELLO, "clientRandom")
                 println("\n========== TLS HANDSHAKE SIMULATION ==========\n")
