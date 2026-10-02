@@ -524,3 +524,90 @@ artifact and ignores the root /.kotlin/ directory. Sources and Gradle wrapper fi
 unaffected. This refactor prepares for future participants acting as either initiator or
 responder; Double Star topology, nodes, routing, and concurrent production sessions are
 NOT implemented.
+
+
+## Phase 12
+
+Six strongly typed logical NodeIds and centralized NodeDirectory configurations prepare the
+future Double Star topology. Socket locations and authenticated identities are distinct:
+
+| NodeId | Socket location | Certificate identity |
+| --- | --- | --- |
+| A1 | localhost:9001 | a1.rgr.local |
+| A2 | localhost:9002 | a2.rgr.local |
+| HUB_A | localhost:9003 | hub-a.rgr.local |
+| HUB_B | localhost:9004 | hub-b.rgr.local |
+| B1 | localhost:9005 | b1.rgr.local |
+| B2 | localhost:9006 | b2.rgr.local |
+
+The directory validates all six NodeIds, unique ports/identities, valid ports, nonblank hosts,
+and canonical certificate identities. These educational DNS identities do not require real
+DNS resolution. Ports are configuration only; no topology listeners are started.
+
+Planned Double Star connections (documentation only):
+
+```text
+A1 ──┐                         ┌── B1
+     │                         │
+     ├── HUB_A ───── HUB_B ───┤
+     │                         │
+A2 ──┘                         └── B2
+```
+
+Generate topology credentials with: ./gradlew.bat generateNodeCertificates
+
+One shared CN=RGR Root CA issues six independent RSA-2048 node certificates using
+SHA256withRSA. Each leaf has its canonical identity as both CN and DNS SAN, distinct positive
+serial, non-CA BasicConstraints, digitalSignature/keyEncipherment usages, and serverAuth EKU.
+Validity remains five years for the root and approximately one year for leaves. The Root CA
+private key stays in memory only during generation and is not saved.
+
+Generated topology material is isolated from the legacy demo:
+
+```text
+certificates/
+    root-ca.crt
+    server.crt
+    server-keystore.p12
+    topology/
+        root-ca.crt
+        nodes/
+            a1/certificate.crt
+            a1/keystore.p12
+            a2/...
+            hub-a/...
+            hub-b/...
+            b1/...
+            b2/...
+```
+
+Each node PKCS#12 uses alias node and contains its own private key, leaf, and shared Root CA
+chain. The existing fixed password is for local educational use only, not production.
+All generated material remains gitignored. Regeneration replaces the topology root and all
+six node credential sets together; it does not alter the legacy demo root or server files.
+
+NodeCredentialsLoader loads by NodeId, reuses the existing keystore safety checks, checks
+leaf DER and RSA modulus matching, verifies the shared root chain, and PKIX-validates the
+canonical SAN identity. Missing files explicitly request generateNodeCertificates.
+ServerCredentials is reused as responder credentials for any identity to avoid breaking
+the existing handshake API.
+
+Any node may act as responder. Role reversal means the new responder presents its own
+certificate; it does not introduce mutual TLS or an initiator certificate message.
+HandshakeInitiator receives the topology root and expected node identity independently;
+HandshakeResponder receives loaded node credentials. Their wire format is unchanged.
+All handshake/application data still uses MessageTransport/PacketTransport with the complete
+256-byte physical frame limit including LF.
+
+Tests cover all six identities, shared trust, mismatched identities/unrelated roots, unique
+keys/serials/SANs, temporary-directory loaders and malformed credential sets. Direct loopback
+handshakes A1 -> B2 and B2 -> A1 exchange encrypted Ukrainian text with real derived keys.
+
+The legacy demo commands remain unchanged:
+- ./gradlew.bat build
+- ./gradlew.bat generateCertificates
+- ./gradlew.bat runServer --console=plain
+- ./gradlew.bat runClient --console=plain
+
+Topology networking, forwarding, routing, multiple running nodes, broadcasts, and a Root CA
+verification server are NOT implemented. No NodeMain or six-node startup command is added.

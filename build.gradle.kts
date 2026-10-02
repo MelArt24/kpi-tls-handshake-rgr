@@ -50,3 +50,11 @@ tasks.register<JavaExec>("generateCertificates") {
     mainClass.set("ua.kpi.rgr.certificate.CertificateGeneratorMainKt")
     workingDir = rootProject.projectDir
 }
+
+tasks.register<JavaExec>("generateNodeCertificates") {
+    group = "application"
+    description = "Generates six independent node credentials under one isolated topology Root CA."
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("ua.kpi.rgr.certificate.NodeCertificateGeneratorMainKt")
+    workingDir = rootProject.projectDir
+}

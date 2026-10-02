@@ -18,14 +18,22 @@ data class ServerCredentials(
 
 object ServerCredentialsLoader {
     fun load(directory: Path = CertificateConfig.OUTPUT_DIRECTORY): ServerCredentials {
-        val certificate = CertificateLoader.loadServer(directory)
-        val keystorePath = directory.resolve(CertificateConfig.SERVER_KEYSTORE_FILE)
-        CertificateLoader.requireFile(keystorePath)
+        return loadFiles(directory.resolve(CertificateConfig.SERVER_CERTIFICATE_FILE),
+            directory.resolve(CertificateConfig.SERVER_KEYSTORE_FILE), CertificateConfig.SERVER_ALIAS)
+    }
+
+    internal fun loadFiles(
+        certificatePath: Path,
+        keystorePath: Path,
+        alias: String,
+        generationTask: String = "generateCertificates",
+    ): ServerCredentials {
+        val certificate = CertificateLoader.load(certificatePath, generationTask)
+        CertificateLoader.requireFile(keystorePath, generationTask)
         val password = CertificateConfig.KEYSTORE_PASSWORD.toCharArray()
         try {
             val keyStore = KeyStore.getInstance("PKCS12")
             Files.newInputStream(keystorePath).use { keyStore.load(it, password) }
-            val alias = CertificateConfig.SERVER_ALIAS
             if (!keyStore.containsAlias(alias) || !keyStore.entryInstanceOf(alias, KeyStore.PrivateKeyEntry::class.java)) {
                 throw IOException("Server keystore must contain a private-key entry with alias '$alias'.")
             }
@@ -41,12 +49,12 @@ object ServerCredentialsLoader {
             if (!chain[0].encoded.contentEquals(certificate.encoded) || publicKey !is RSAPublicKey || key.modulus != publicKey.modulus) {
                 throw IOException(
                     "Server certificate and private-key keystore do not belong to the same generated credential set. " +
-                        "Run: ./gradlew.bat generateCertificates",
+                        "Run: ./gradlew.bat $generationTask",
                 )
             }
             return ServerCredentials(key, certificate, chain.map { it as X509Certificate })
         } catch (error: GeneralSecurityException) {
-            throw IOException("Cannot load server PKCS#12 credentials. Run: ./gradlew.bat generateCertificates", error)
+            throw IOException("Cannot load server PKCS#12 credentials. Run: ./gradlew.bat $generationTask", error)
         } finally {
             password.fill('\u0000')
         }

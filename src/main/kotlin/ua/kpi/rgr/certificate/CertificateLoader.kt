@@ -8,9 +8,9 @@ import java.security.cert.CertificateFactory
 import java.security.cert.X509Certificate
 
 object CertificateLoader {
-    fun requireFile(path: Path) {
+    fun requireFile(path: Path, generationTask: String = "generateCertificates") {
         if (!Files.isRegularFile(path)) {
-            throw IOException("Certificate file is missing: $path. Run: ./gradlew.bat generateCertificates")
+            throw IOException("Certificate file is missing: $path. Run: ./gradlew.bat $generationTask")
         }
     }
 
@@ -20,8 +20,8 @@ object CertificateLoader {
     fun loadServer(directory: Path = CertificateConfig.OUTPUT_DIRECTORY): X509Certificate =
         load(directory.resolve(CertificateConfig.SERVER_CERTIFICATE_FILE))
 
-    fun load(path: Path): X509Certificate {
-        requireFile(path)
+    fun load(path: Path, generationTask: String = "generateCertificates"): X509Certificate {
+        requireFile(path, generationTask)
         try {
             return Files.newInputStream(path).use {
                 CertificateFactory.getInstance("X.509").generateCertificate(it) as X509Certificate
