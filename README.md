@@ -611,3 +611,48 @@ The legacy demo commands remain unchanged:
 
 Topology networking, forwarding, routing, multiple running nodes, broadcasts, and a Root CA
 verification server are NOT implemented. No NodeMain or six-node startup command is added.
+
+
+## Phase 13
+
+DoubleStarTopology models the exact non-fully-connected Double Star graph:
+
+```text
+A1 ──┐                         ┌── B1
+     │                         │
+     ├── HUB_A ───── HUB_B ───┤
+     │                         │
+A2 ──┘                         └── B2
+```
+
+There are six nodes and exactly five bidirectional physical links:
+A1 <-> HUB_A, A2 <-> HUB_A, HUB_A <-> HUB_B, HUB_B <-> B1, HUB_B <-> B2.
+A1/A2 each neighbor only HUB_A; B1/B2 each neighbor only HUB_B.
+HUB_A neighbors A1, A2, HUB_B; HUB_B neighbors HUB_A, B1, B2.
+No other direct links exist.
+
+NodeDirectory retains node host/port/certificate metadata; DoubleStarTopology separately owns
+immutable links, adjacency, and route calculation. Static validation checks all six configured
+nodes, five distinct undirected links, known neighbors, symmetry, no self-links, and connectivity.
+
+Routes are calculated with conventional unweighted BFS and deterministic NodeId neighbor order.
+TopologyRoute exposes the ordered nodes, source, destination, hopCount, formatted path, and
+nextHopAfter (null at the destination; an unrelated node is rejected).
+Hop count counts physical links, not nodes. A1 -> HUB_A -> HUB_B -> B2 has three hops;
+A1 -> HUB_A -> A2 has two. A node-to-itself route contains only that node and has zero hops.
+An impossible disconnected-route lookup fails clearly rather than returning an empty route.
+
+Run the non-network demonstration: ./gradlew.bat runTopologyDemo
+
+It prints all node socket locations, the five links, and representative shortest routes:
+A1 -> HUB_A -> HUB_B -> B2 (3 hops), B1 -> HUB_B -> HUB_A -> A2 (3 hops),
+and A1 -> HUB_A -> A2 (2 hops). It opens no sockets and generates no credentials.
+
+Tests cover exact adjacency/links, representative routes and hop counts, all 36 ordered pairs,
+valid path edges, no repeated nodes, deterministic/reversed paths, unchanged NodeDirectory
+metadata, next-hop misuse, and immutable public collections.
+
+Phase 13 models routing decisions but does not yet transmit traffic through intermediate hubs.
+Actual topology sockets, forwarding, routed packet headers, and multi-hop networking are NOT
+implemented. Existing TLS-like handshake, certificates, wire formats, generateNodeCertificates,
+and the complete 256-byte physical packet limit including LF are unchanged.

@@ -58,3 +58,10 @@ tasks.register<JavaExec>("generateNodeCertificates") {
     mainClass.set("ua.kpi.rgr.certificate.NodeCertificateGeneratorMainKt")
     workingDir = rootProject.projectDir
 }
+
+tasks.register<JavaExec>("runTopologyDemo") {
+    group = "application"
+    description = "Prints the fixed Double Star links and shortest routes without networking."
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("ua.kpi.rgr.topology.TopologyDemoMainKt")
+}
