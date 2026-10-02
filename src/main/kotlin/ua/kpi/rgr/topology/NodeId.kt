@@ -1,5 +1,8 @@
 package ua.kpi.rgr.topology
 
+import kotlinx.serialization.Serializable
+
+@Serializable
 enum class NodeId(val certificateIdentity: String, val directoryName: String) {
     A1("a1.rgr.local", "a1"),
     A2("a2.rgr.local", "a2"),

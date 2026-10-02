@@ -656,3 +656,79 @@ Phase 13 models routing decisions but does not yet transmit traffic through inte
 Actual topology sockets, forwarding, routed packet headers, and multi-hop networking are NOT
 implemented. Existing TLS-like handshake, certificates, wire formats, generateNodeCertificates,
 and the complete 256-byte physical packet limit including LF are unchanged.
+
+
+## Phase 14
+
+Actual TCP topology listeners and connection-scoped routed tunnels now follow DoubleStarTopology.
+The automated six-node demo uses the canonical localhost ports 9001-9006; tests inject dynamically
+bound loopback ports. Any two distinct NodeIds can establish a tunnel along their canonical BFS path.
+
+Representative forward path:
+
+```text
+A1
+ ↓
+HUB_A
+ ↓
+HUB_B
+ ↓
+B2
+```
+
+The reverse path is B2 -> HUB_B -> HUB_A -> A1. Same-star paths such as A1 -> HUB_A -> A2
+and B1 -> HUB_B -> B2 use the same generic implementation.
+
+TopologyNodeRuntime provides start, connect(destination), and close. Only destination runtimes
+deliver RoutedConnection to endpoint handlers. Connections expose streams and metadata but contain
+no handshake logic. Every outgoing physical socket targets a direct neighbor, never a remote
+destination shortcut.
+
+A small pre-handshake control protocol carries OPEN/READY, UUID routeId, source, destination,
+and sender. Each node independently computes the canonical route and validates its previous hop.
+READY is checked against all route metadata and the expected downstream sender, then propagated
+back upstream. The source starts CLIENT_HELLO only after receiving READY. A direct A1 -> B2 OPEN
+claiming sender A1 is rejected because B2 expects HUB_B. Off-route nodes, wrong state/sender,
+self-routes, malformed metadata, and inconsistent READY are rejected.
+
+Control decoding reads raw bytes exactly through one LF without prefetching later RadioPackets.
+Control frames and data frames share PacketConfig.MAX_PACKET_BYTES: complete UTF-8/physical
+frame bytes including LF must be at most 256. Oversized, empty, or incomplete physical frames abort
+the tunnel. RadioPacket is unchanged and never wrapped in another routing envelope.
+
+After READY, each hub runs two scoped relay directions. It reads one bounded complete frame and
+writes those exact bytes, including LF, without reserializing, parsing ProtocolMessage, Base64
+decoding, reassembling, or decrypting. Logs show route metadata, neighbor connections, and frame
+sizes only. EOF closes both related sockets and unblocks relay workers. Runtime close shuts down
+listener sockets, active routes, and executors, including idle connections.
+
+The existing handshake runs end-to-end: A1 authenticates B2 as b2.rgr.local under the topology
+Root CA, not as localhost or a hub. In the reverse session A1 presents a1.rgr.local.
+RSA-OAEP, HKDF, encrypted Finished, and AES-GCM APPLICATION_DATA use the unchanged endpoint APIs.
+Certificates and long encrypted Ukrainian messages fragment only at endpoints and reassemble
+only at endpoints; each physical frame crosses both hubs unchanged.
+
+Hubs act only as transport forwarders and do not parse or decrypt endpoint protocol messages.
+They never possess the end-to-end session keys and cannot decrypt AES-GCM APPLICATION_DATA.
+Some handshake metadata (including hellos and certificates) is not encrypted. Route metadata
+is also not encrypted or authenticated by the TLS-like session, because setup precedes it;
+sender validation checks declared canonical hop metadata, not cryptographic peer identity.
+
+Run:
+
+- ./gradlew.bat build
+- ./gradlew.bat generateNodeCertificates
+- ./gradlew.bat runDoubleStarNetworkDemo
+
+The scripted demo starts all six listeners in one JVM, runs A1 -> B2 and B2 -> A1 handshakes,
+exchanges encrypted greetings/replies and long Ukrainian text, sends encrypted /exit, and stops
+all runtimes. No six-terminal interaction is required. Legacy ClientMain/ServerMain tasks remain
+unchanged.
+
+Tests cover control framing/validation, canonical next hops, direct-bypass rejection,
+byte-identical relay output, oversized/incomplete frames, all 30 ordered tunnel pairs,
+real routed handshakes in both roles, encrypted long chat, destination-only handler delivery,
+and shutdown of idle sockets/listeners/workers. Previous certificate/crypto/packet tests remain.
+
+Broadcast, a Root CA verification server, per-hop/mutual TLS, packet loss/retransmission,
+latency/bandwidth simulation, dynamic topology, and routing-table protocols are NOT implemented.

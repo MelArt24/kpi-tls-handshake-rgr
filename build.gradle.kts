@@ -65,3 +65,11 @@ tasks.register<JavaExec>("runTopologyDemo") {
     classpath = sourceSets["main"].runtimeClasspath
     mainClass.set("ua.kpi.rgr.topology.TopologyDemoMainKt")
 }
+
+tasks.register<JavaExec>("runDoubleStarNetworkDemo") {
+    group = "application"
+    description = "Runs six Double Star TCP listeners, routed endpoint handshakes and scripted encrypted exchanges."
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("ua.kpi.rgr.topology.DoubleStarNetworkDemoMainKt")
+    jvmArgs("-Dfile.encoding=UTF-8")
+}
